@@ -57,7 +57,7 @@ class Event:
         elif rg == "tw":
             self.timeline = self.load_timeline_tw()
         elif rg == "cn":
-            self.timeline = None
+            self.timeline = self.load_timeline_cn()
         elif rg == "kr":
             self.timeline = None
         else:
@@ -78,6 +78,12 @@ class Event:
                 return
             self.timeline = timeline
             print("刷新台服日程表成功")
+        elif rg == "cn":
+            timeline = await self.load_timeline_cn_async()
+            if timeline is None:
+                return
+            self.timeline = timeline
+            print("刷新国服日程表成功")
         else:
             self.timeline = None
             print(f"{rg}区域无日程表")
@@ -176,6 +182,47 @@ class Event:
                 self.load_time_tw(e["start_time"]),
                 self.load_time_tw(e["end_time"]),
                 e["campaign_name"],
+            )
+        return timeline
+
+    def load_time_cn(self, timestr) -> Arrow:
+        d_time = datetime.datetime.strptime(timestr, r"%Y/%m/%d %H:%M:%S")
+        a_time = Arrow.fromdatetime(d_time)
+        if a_time.time() < datetime.time(hour=5):
+            a_time -= datetime.timedelta(hours=5)
+        return a_time
+
+    def load_timeline_cn(self):
+        event_source = "https://api.v3.yobot.xyz/calender/cn.json"
+        try:
+            res = requests.get(event_source)
+        except requests.exceptions.ConnectionError:
+            raise ServerError("无法连接服务器")
+        if res.status_code != 200:
+            raise ServerError(f"服务器状态错误：{res.status_code}")
+        events = json.loads(res.text)
+        timeline = Event_timeline()
+        for e in events:
+            timeline.add_event(
+                self.load_time_cn(e["start_time"]),
+                self.load_time_cn(e["end_time"]),
+                e["name"],
+            )
+        return timeline
+
+    async def load_timeline_cn_async(self):
+        event_source = "https://api.v3.yobot.xyz/calender/cn.json"
+        async with aiohttp.request("GET", url=event_source) as response:
+            if response.status != 200:
+                raise ServerError(f"服务器状态错误：{response.status}")
+            res = await response.text()
+        events = json.loads(res)
+        timeline = Event_timeline()
+        for e in events:
+            timeline.add_event(
+                self.load_time_cn(e["start_time"]),
+                self.load_time_cn(e["end_time"]),
+                e["name"],
             )
         return timeline
 
